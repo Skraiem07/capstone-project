@@ -8,13 +8,7 @@ file_path = '../data/cosmetics.csv'
 df = pd.read_csv(file_path)
 df['features'] = df['Ingredients']
 
-# TF-IDF Vectorizer
-tfidf = TfidfVectorizer(stop_words='english')
-tfidf_matrix = tfidf.fit_transform(df['features'])
-cosine_sim = cosine_similarity(tfidf_matrix, tfidf_matrix)
-indices = pd.Series(df.index, index=df['Name']).drop_duplicates()
-
-def recommend_cosmetics(skin_type, label_filter, rank_filter, brand_filter, price_range, ingredient_input=None, num_recommendations=5):
+def recommend_cosmetics(skin_type, label_filter, rank_filter, brand_filter, price_range, ingredient_input=None, num_recommendations=10):
     # Apply initial filters
     filtered_products = df[df[skin_type] == 1]
     
@@ -36,13 +30,20 @@ def recommend_cosmetics(skin_type, label_filter, rank_filter, brand_filter, pric
 
     # Apply ingredient filter on the filtered DataFrame
     if ingredient_input:
-        vectorizer = TfidfVectorizer(stop_words='english')
-        tfidf_matrix_filtered = vectorizer.fit_transform(filtered_products['Ingredients'])
-        input_vec = vectorizer.transform([ingredient_input])
-        cosine_similarities = cosine_similarity(input_vec, tfidf_matrix_filtered).flatten()
-        recommended_indices = cosine_similarities.argsort()[-num_recommendations:][::-1]
-        filtered_products = filtered_products.iloc[recommended_indices]
-    
+        ingredients = [ingredient.strip().lower() for ingredient in ingredient_input.split(',')]
+        filtered_products = filtered_products[
+            filtered_products['Ingredients'].apply(lambda x: all(ingredient in x.lower() for ingredient in ingredients))
+        ]
+        
+        if not filtered_products.empty:
+            # Apply cosine similarity to the filtered DataFrame based on ingredients
+            vectorizer = TfidfVectorizer(stop_words='english')
+            tfidf_matrix_filtered = vectorizer.fit_transform(filtered_products['Ingredients'])
+            input_vec = vectorizer.transform([ingredient_input])
+            cosine_similarities = cosine_similarity(input_vec, tfidf_matrix_filtered).flatten()
+            recommended_indices = cosine_similarities.argsort()[-num_recommendations:][::-1]
+            filtered_products = filtered_products.iloc[recommended_indices]
+
     return filtered_products.sort_values(by=['Rank']).head(num_recommendations)
 
 def main():
@@ -91,3 +92,4 @@ def main():
 
 if __name__ == "__main__":
     main()
+
